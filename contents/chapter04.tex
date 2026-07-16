@@ -1,13 +1,174 @@
 % !TeX root = ../main.tex
 
-\chapter{英文測試}
+\chapter{Implementation}
 
-\section{出師表}
+\section{Prototype Overview}
 
-\lipsum
+The prototype is implemented in Python and built on top of Slither. The main
+entry point is a price manipulation analyzer that accepts a Solidity file or
+project directory, initializes Slither, constructs source and sink managers, and
+runs a project-level taint tracker. The prototype also includes command-line
+drivers for running taint analysis, generating representative paths, previewing
+LLM prompts, and executing the staged LLM workflow.
 
-\section{短歌行}
+The implementation is organized around three major packages. The
+\texttt{taint\_analysis} package contains the static-analysis engine, source and
+sink definitions, path tracking, path reconstruction, source canonicalization,
+prompt generation, and Slither integration. The \texttt{llm\_analysis} package
+contains the staged LLM engine and prompt templates. The dataset and script
+directories contain audit-finding collection, repository cloning, build
+verification, and dataset validation utilities.
 
-\lipsum
+\section{Analyzer Orchestration}
 
-This is just to test \cite{Krasnogor2004e} the cite function.
+The main analyzer object is \texttt{PriceManipulationAnalyzer}. It receives a
+contract path and an optional taint-analysis configuration. It then initializes
+three core components:
+
+\begin{itemize}
+  \item \texttt{SlitherAnalyzer}, which parses the target project and exposes
+        contracts, functions, CFG nodes, and SlithIR operations.
+  \item \texttt{SourceSinkManager}, which manages taint source and sink
+        definitions.
+  \item \texttt{TaintTracker}, which performs source identification,
+        propagation, sink matching, and path reconstruction.
+\end{itemize}
+
+The analyzer returns a dictionary containing the target path, total vulnerable
+path count, path summaries, serialized paths, number of sources found, and
+number of sinks found. Each serialized path includes source file and line,
+source contract and function, source type, canonical source ID, sink file and
+line, sink kind, sink operand selector, tainted variable, contract, and
+function.
+
+\section{Source and Sink Configuration}
+
+The prototype defines configurable patterns for common price sources and sinks.
+Oracle patterns include function names such as \texttt{latestRoundData},
+\texttt{getPrice}, \texttt{getReserves}, \texttt{consult}, and
+\texttt{fetchPrice}. Flash-loan patterns include \texttt{flashLoan},
+\texttt{borrow}, and \texttt{executeOperation}. Price calculation sinks include
+swap and quote helpers, while collateral and lending sinks include liquidation,
+health factor, borrowing, depositing, withdrawing, minting, burning, and
+repayment patterns.
+
+The configuration also supports storage-taint sources based on price-like state
+variable names such as \texttt{price}, \texttt{rate}, \texttt{oracle}, and
+\texttt{feed}. During initialization, the analyzer scans state variables in the
+target contracts and constructs a storage-read source for matched variables.
+
+\section{Taint Engine}
+
+The \texttt{TaintTracker} implements the core static analysis. It maintains a
+taint map, a path tracker, source records, raw source candidates, sink matches,
+return summaries, call contexts, and worklist metrics. The engine operates at
+the project level rather than only within a single contract. This is necessary
+because DeFi protocols often split price logic, accounting logic, and token
+operations across multiple contracts and libraries.
+
+The engine identifies raw source candidates and converts them into canonical
+source records. A source record stores a canonical ID, display label, caller
+source label, source type, exact seed IDs, provenance chain, terminal external
+sites, source node, source operation, and related caller metadata. This design
+allows a source wrapper to remain connected to the underlying price read.
+
+Propagation is delegated to operation-specific handlers. These handlers process
+assignments, binary operations, calls, type conversions, member accesses, tuple
+unpacking, and returns. The implementation also maintains return summaries so
+that a tainted return value can be propagated from a callee back to caller
+contexts. This is important for helper functions that wrap price reads.
+
+\section{Path Tracking and Grouping}
+
+The \texttt{PathTracker} stores vulnerable paths and source aliases. It maps
+exact variable identifiers to canonical source IDs, tracks reporting seed IDs,
+and records source realizations created during propagation. This separation
+between exact IDs and canonical IDs is important because Solidity compilation
+and Slither SSA can produce many local identifiers for one semantic source.
+
+Raw vulnerable paths are grouped into representative paths before LLM analysis.
+The grouping layer reduces duplicate paths, merges sink-function records, and
+preserves marked sink lines. The resulting prompt entries contain source
+records, sink groups, sink function code, state writes, external calls,
+representative path counts, raw path counts, and source-sink chains.
+
+This abstraction is a practical requirement. In preliminary runs, one project
+can produce hundreds of raw paths. Passing all of them directly to an LLM would
+increase cost and would also make the final report difficult to interpret.
+
+\section{Prompt Generation}
+
+The prompt generator renders concise evidence from representative paths. It
+normalizes whitespace, truncates long statements, formats source provenance,
+extracts line labels, and renders source-to-sink chains. It also marks sink
+lines in function bodies so that the LLM can inspect the relevant code without
+receiving unrelated files.
+
+The generated prompt JSON is saved under a project-specific output directory.
+This makes each analysis run auditable: the final LLM report can be traced back
+to the exact prompt entries and static-analysis summary used for that run.
+
+\section{LLM Engine}
+
+The \texttt{LLMEngine} orchestrates four named stages:
+\texttt{classify\_canonical\_sources},
+\texttt{classify\_sources\_with\_context},
+\texttt{triage\_sink\_group\_impact}, and
+\texttt{judge\_root\_cause\_findings}. The engine supports preview mode, which
+prints prompts without calling an API, and run mode, which calls the configured
+OpenAI model and writes a structured JSON report.
+
+Every stage validates the model response. Source classification must return one
+result for every expected source label and must use one of the allowed source
+classes and decisions. Sink triage must return one result for every expected
+sink group ID. Root-cause judgment must return one result for every expected
+canonical source ID and must refer only to known evidence IDs.
+
+This validation does not prove that the model is correct, but it prevents many
+format and traceability failures. It also makes the report suitable for
+automatic matching against ground truth.
+
+\section{Dataset Utilities}
+
+The prototype includes scripts for collecting and organizing audit findings.
+The dataset CSV records report date, audit firm, severity, protocol, title,
+tags, year, compilation status, source-code link, Solodit URL, GitHub link,
+summary, manipulation label, source-code availability, and remarks. This format
+supports filtering from a broad collected set to a narrower build-verified
+evaluation set.
+
+A separate build-manifest verifier checks curated HIGH-severity projects. It
+validates project IDs, roots, toolchains, build commands, compiler versions,
+required environment fields, lockfiles, and build output directories. This is
+important because a finding with a public repository is not automatically
+usable for static analysis. The project must be available in a reproducible
+form that Slither can analyze.
+
+\section{Execution Modes}
+
+The main taint-analysis test driver can run in three LLM modes:
+
+\begin{itemize}
+  \item \texttt{off}: run taint analysis and generate artifacts only.
+  \item \texttt{preview}: render the staged LLM prompts without API calls.
+  \item \texttt{run}: execute the configured LLM workflow and write a report.
+\end{itemize}
+
+The LLM engine also has a standalone test driver. Given an existing
+\texttt{llm\_prompts} JSON file, it can preview prompts, run the workflow, or
+step through prompts interactively. This separation makes it possible to debug
+static analysis and LLM reasoning independently.
+
+\section{Current Implementation Limitations}
+
+The current implementation is a prototype. It focuses on taint analysis,
+representative path generation, and staged LLM report generation. Sanity
+verification rules are not yet fully implemented. In particular, checks for
+access control, TWAP adequacy, staleness validation, slippage protection,
+fee-on-transfer behavior, and time-based controls need to be formalized.
+
+The current sink definitions also require expansion. Preliminary artifacts show
+cases where canonical sources are found but no sink sites are retained. This
+can happen when the analyzed target does not include the relevant code path, or
+when the sink model does not cover the protocol's specific economic operation.
+These limitations are treated as part of the evaluation rather than hidden.

@@ -1,11 +1,189 @@
 % !TeX root = ../main.tex
 
-\chapter{中文測試}
+\chapter{Design}
 
-\section{史記}
+\section{Design Goals}
 
-\zhlipsum[name=xiangyu]
+The goal of this thesis is to design a price manipulation analysis workflow
+whose output can be evaluated as an audit report, not only as a binary
+vulnerability label. This leads to four design goals.
 
-\section{山海經}
+\textbf{Evidence first.} The system should not ask an LLM to find
+vulnerabilities from an entire repository without structure. Static analysis
+must first provide concrete source, sink, and path evidence.
 
-\zhlipsum[name=nanshanjing]
+\textbf{Semantic grouping.} Raw taint paths are often redundant. A single root
+cause may produce many syntactic paths because of SSA variables, helper
+functions, tuple returns, or multiple sink operands. The system should group
+paths into representative semantic units before LLM analysis.
+
+\textbf{Structured reasoning.} LLM output should be constrained to explicit
+fields such as source classification, sink impact decision, root-cause
+location, missing mitigation, and supporting evidence IDs. Free-form prose
+alone is difficult to validate and score.
+
+\textbf{Audit-oriented evaluation.} The final output should be comparable to
+audit findings. The evaluation should measure localization, explanation match,
+and over-reporting, not only protocol-level detection.
+
+\section{Workflow Overview}
+
+The proposed workflow contains four major phases:
+
+\begin{enumerate}
+  \item Static taint analysis identifies candidate flows from price-related
+        sources to economically meaningful sinks.
+  \item Path abstraction canonicalizes sources, records provenance, groups
+        sink operands, and emits representative paths.
+  \item LLM-based analysis filters retained evidence and generates structured
+        audit-style findings.
+  \item Report-level evaluation matches predictions against audit findings and
+        computes binary, localization, semantic, and over-reporting metrics.
+\end{enumerate}
+
+This design follows the high-level direction of PMDetector, but changes the
+evaluation target. PMDetector-style taint analysis is used as the front end, and
+LLM reasoning is used as the semantic filter. The difference is that this
+thesis treats the generated report as the main artifact.
+
+\section{Static Analysis Design}
+
+\subsection{Source Model}
+
+The source model intentionally over-approximates possible price-related values.
+Candidate sources include oracle-like functions, AMM reserve and price reads,
+external view or pure calls with price-like usage, flash-loan-related calls,
+and storage reads from price-like state variables. This broad definition is
+necessary because DeFi protocols often wrap price reads behind protocol-specific
+helper functions.
+
+Each source is represented not only as a raw variable but also as a canonical
+source record. A canonical source groups multiple exact seed identifiers that
+refer to the same semantic source. For example, a helper function may return a
+price that is unpacked into several local variables across different callers.
+Treating these as unrelated sources would inflate the number of findings.
+Canonicalization allows the system to report one root cause with multiple
+supporting paths.
+
+\subsection{Sink Model}
+
+The sink model focuses on economically meaningful operations. Candidate sinks
+include price calculations, collateral checks, lending and borrowing operations,
+margin updates, liquidation logic, token minting and burning, transfers, and
+state writes that affect accounting. The sink model is broader than the final
+vulnerability definition because static analysis should first collect possible
+evidence.
+
+For evaluation, it is important to record the exact sink operand. A function may
+contain several state writes, but only one operand may be controlled by a
+manipulable price source. The design therefore tracks semantic sink operands
+instead of reporting only that a function contains a sink.
+
+\subsection{Propagation and Path Reconstruction}
+
+Taint propagation operates over Slither IR. The design propagates taint through
+assignments, arithmetic operations, references, member accesses, tuple
+unpacking, return values, internal calls, library calls, and selected
+inter-contract calls. The analysis also records provenance so that a local
+wrapper can be connected to the terminal external read.
+
+After propagation, the system reconstructs paths from sink operands back to
+their sources. The raw path list is expected to contain duplicates and near
+duplicates. This is acceptable at the static-analysis stage because the goal is
+to avoid missing potentially relevant flows. Redundancy is reduced in the path
+abstraction phase.
+
+\section{Representative Path Design}
+
+The representative path layer converts raw static-analysis results into compact
+LLM evidence. It has three responsibilities.
+
+First, it collapses duplicate raw paths that share the same semantic
+source-sink relationship. This reduces prompt size and prevents the LLM from
+mistaking path volume for vulnerability severity.
+
+Second, it preserves information needed for audit reporting: source label,
+source function, source provenance, terminal external reads, sink function,
+marked sink lines, state writes, external calls, and path counts. The LLM should
+see enough context to reason about exploitability without receiving the entire
+repository.
+
+Third, it assigns stable evidence identifiers. The final LLM report refers to
+supporting evidence IDs, making it possible to trace each generated finding
+back to concrete static-analysis artifacts.
+
+\section{LLM Analysis Design}
+
+\subsection{Stage 0: Source Classification}
+
+The first LLM stage classifies each canonical source. The allowed
+classifications are \texttt{spot\_amm\_price},
+\texttt{twap\_or\_oracle\_price}, \texttt{protocol\_state},
+\texttt{fee\_or\_liquidity}, \texttt{unrelated}, and \texttt{unknown}. The
+model also outputs a decision: keep, drop, or need more context.
+
+This stage is designed to remove obvious false positives early. For example,
+pool addresses, DAO addresses, balances, total supply, and fee-growth helpers
+may be part of a taint path but are not necessarily manipulable price sources.
+
+\subsection{Stage 1: Sink Group Triage}
+
+For retained sources, the second LLM stage judges whether each sink group is
+economically dangerous. A sink is dangerous when the tainted value affects
+accounting, margin, collateral, liquidation, value transfer, minting, burning,
+or another price-sensitive operation. It is not dangerous when it is telemetry,
+metadata, harmless caching, or a value not actually controlled by the retained
+source.
+
+\subsection{Stage 2: Root-Cause Judgment}
+
+The final LLM stage emits at most one finding per canonical source. This design
+reduces over-reporting by preventing every path from becoming a separate
+finding. Each output includes a verdict, root-cause location, vulnerable
+external read, missing mitigation, supporting evidence IDs, duplicate or
+supporting evidence IDs, and a concise explanation.
+
+The output schema is intentionally audit-like. It should be possible to compare
+the generated explanation with a ground-truth audit finding and ask whether
+they describe the same issue.
+
+\section{Evaluation Design}
+
+\subsection{Ground Truth}
+
+The proposed ground truth is a curated set of audit findings related to price
+manipulation. Each finding should contain at least the protocol, title,
+description, affected function or code location when available, impact, and
+mitigation. The dataset should also record whether source code is available and
+whether the repository is build-verified.
+
+\subsection{Report Matching}
+
+For each project, generated findings are matched against ground-truth audit
+findings. A pair score combines localization agreement, mitigation agreement,
+and semantic explanation similarity. Low-scoring pairs are treated as
+non-matches. Maximum-weight bipartite matching can then be used to assign
+predictions to ground truth without allowing one prediction to satisfy multiple
+findings.
+
+\subsection{Over-Reporting Penalty}
+
+The evaluation penalizes unsupported extra findings. For a project $p$, the
+basic penalty is:
+
+\[
+\mathrm{Penalty}(p) = \max(0, \#\mathrm{Predictions}(p) -
+\#\mathrm{GroundTruth}(p)).
+\]
+
+This penalty captures audit workload. A detector that emits many weak reports
+can increase recall, but it also increases manual review cost.
+
+\section{Scope}
+
+The initial scope is price manipulation in Solidity-based DeFi protocols. The
+dataset may contain related reward or vote manipulation findings, but the core
+thesis focuses on price-related sources and price-sensitive sinks. Other
+vulnerability classes such as reentrancy, access control, and bridge-specific
+logic are outside the main scope unless they directly affect price manipulation
+mitigation.

@@ -1,26 +1,172 @@
 % !TeX root = ../main.tex
 
-\chapter{中國文學}
+\chapter{Background and Related Work}
 
-\section{出師表}
+\section{Price Manipulation in DeFi}
 
-臣亮言：先帝創業未半，而中道崩殂。今天下三分，益州疲弊，此誠危急存亡之秋也。然侍衛之臣，不懈於內；忠志之士，忘身於外者，蓋追先帝之殊遇，欲報之於陛下也。誠宜開張聖聽，以光先帝遺德，恢弘志士之氣；不宜妄自菲薄，引喻失義，以塞忠諫之路也。宮中府中，俱為一體，陟罰臧否，不宜異同。若有作姦犯科，及為忠善者，宜付有司，論其刑賞，以昭陛下平明之治，不宜篇私，使內外異法也。\par
+Price manipulation vulnerabilities occur when a protocol uses a price-related
+value that can be influenced by an attacker. In DeFi systems, price is not only
+used for swaps. It can affect collateral valuation, liquidation eligibility,
+minting and burning, reward accounting, vault share calculation, margin
+requirements, protocol-owned liquidity management, and other economic state
+transitions. A short-lived price deviation may be enough to extract value if the
+protocol reads the manipulated value and immediately commits an irreversible
+state change.
 
-侍中、侍郎郭攸之、費褘、董允等，此皆良實，志慮忠純，是以先帝簡拔以遺陛下。愚以為宮中之事，事無大小，悉以咨之，然後施行，必能裨補闕漏，有所廣益。將軍向寵，性行淑均，曉暢軍事，試用於昔日，先帝稱之曰「能」，是以眾議舉寵為督。愚以為營中之事，悉以咨之，必能使行陣和睦，優劣得所。親賢臣，遠小人，此先漢所以興隆也；親小人，遠賢臣，此後漢所以傾頹也。先帝在時，每與臣論此事，未嘗不歎息痛恨於桓、靈也。侍中、尚書、長史；參軍，此悉貞良死節之臣也，願陛下親之信之，則漢室之隆，可計日而待也。
+Many price manipulation attacks rely on flash loans or low-cost temporary
+liquidity movement. The attacker changes the apparent price in a pool, triggers
+a price-dependent operation, and then restores the market state before the end
+of the transaction. Because the manipulated state can be transient, detecting
+the vulnerability requires understanding how a price value is obtained, how it
+is consumed by financial logic, and whether the surrounding implementation
+contains adequate protection. Merely checking whether a contract imports an
+oracle interface is not enough.
 
-臣本布衣，躬耕於南陽，苟全性命於亂世，不求聞達於諸侯。先帝不以臣卑鄙，猥自枉屈，三顧臣於草廬之中，諮臣以當世之事，由是感激，遂許先帝以驅馳。後值傾覆，受任於敗軍之際，奉命於危難之間，爾來二十有一年矣！先帝知臣謹慎，故臨崩寄臣以大事也。受命以來，夙夜憂勤，恐託付不效，以傷先帝之明。故五月渡瀘，深入不毛。今南方已定，兵甲已足，當獎率三軍，北定中原，庶竭駑鈍，攘除奸凶，興復漢室，還於舊都；此臣所以報先帝而忠陛下之職分也。至於斟酌損益，進盡忠言，則攸之、褘、允之任也。
+Common risky price dependencies include direct reads from AMM reserves, current
+pool ticks, current square-root prices, direct spot price helper functions,
+stale oracle answers, and protocol-specific wrappers around these values.
+Common affected operations include collateral checks, liquidation paths, margin
+updates, swap output calculation, liquidity minting, reward release, and
+accounting state writes. A safe implementation usually applies mitigation such
+as TWAP, independent oracle cross-checks, staleness checks, deviation bounds,
+slippage checks, or delayed settlement. Therefore, the same syntactic pattern
+can be safe in one context and unsafe in another.
 
-願陛下託臣以討賊興復之效；不效，則治臣之罪，以告先帝之靈。若無興德之言，則戮允等，以彰其慢。陛下亦宜自課，以諮諏善道，察納雅言，深追先帝遺詔，臣不勝受恩感激。
+\section{Smart Contract Auditing Practice}
 
-今當遠離，臨表涕泣，不知所云。
+Smart contract auditing is usually performed at the level of a full protocol
+repository. Auditors inspect multiple contracts, helper libraries, external
+interfaces, deployment assumptions, tests, and business logic. For DeFi
+protocols, this means that an auditor often needs to trace how an asset price is
+computed, how that value crosses contract boundaries, and where it influences
+economically sensitive state transitions.
 
-\section{短歌行}
+The output of an audit is also richer than a vulnerability label. A typical
+finding includes a title, severity, affected code location or snippet, root
+cause, impact, proof-of-concept context or supporting evidence, and mitigation
+recommendation. These elements matter because developers need to reproduce and
+fix the issue, and auditors need to justify why the reported behavior is risky.
+An automated tool that aims to assist audits should therefore be evaluated by
+whether it can produce findings with similar information structure, not only by
+whether it labels a protocol as vulnerable.
 
-對酒當歌，人生幾何！譬如朝露，去日苦多。
-慨當以慷，憂思難忘。何以解憂？唯有杜康。
-青青子衿，悠悠我心。但為君故，沉吟至今。
-呦呦鹿鳴，食野之苹。我有嘉賓，鼓瑟吹笙。
-明明如月，何時可掇？憂從中來，不可斷絕。
-越陌度阡，枉用相存。契闊談宴，心念舊恩。
-月明星稀，烏鵲南飛。繞樹三匝，何枝可依？
-山不厭高，海不厭深。周公吐哺，天下歸心。
+\section{Transaction-Based and Post-Hoc Detection}
+
+Transaction-based systems analyze on-chain behavior to detect attacks that have
+already occurred or suspicious transactions that resemble known attack
+patterns. DeFiRanger recovers high-level DeFi semantics from raw Ethereum
+transactions by constructing cash-flow trees and lifting low-level transfers
+into actions such as trades and liquidity operations \citep{defiranger}. It
+then detects direct and indirect price manipulation attacks using patterns
+expressed over the recovered semantics. This line of work shows that DeFi price
+manipulation requires reasoning about financial behavior rather than only code
+syntax.
+
+DeFiScope extends this post-hoc direction by using LLM reasoning to abstract
+price calculations from smart contract source code and combine them with
+high-level DeFi operations recovered from transaction data
+\citep{defiscope}. It targets both standard and custom price models and reports
+strong attack-detection results on real-world transactions. However, the
+primary unit remains attack or transaction detection. Such systems are valuable
+for monitoring and incident discovery, but they do not directly answer whether
+an auditor reviewing a repository before deployment can obtain a precise
+audit-style finding with code location, root cause, impact, and mitigation.
+
+\section{Code-Based and Pre-Mortem Detection}
+
+Code-based approaches inspect source code or bytecode before exploitation. This
+direction is closer to audit assistance because it can reason about a protocol
+without waiting for an attack transaction. Static analysis is attractive in this
+setting because deployed smart contract code is transparent and many
+vulnerability patterns leave structural traces in the program. Slither is a
+widely used static analysis framework for Solidity. It parses contracts,
+constructs control-flow and call information, and exposes SlithIR, an
+intermediate representation suitable for custom analyses \citep{slither}.
+
+Taint analysis is a common static-analysis technique. In this thesis, source
+and sink are analysis abstractions: a source is a program value chosen as a
+starting point for propagation, and a sink is a program location where reaching
+that value may be relevant to a security question. For price manipulation, this
+abstraction can model whether a price-like value reaches a financial operation.
+However, the abstraction is only a tool model. The vulnerability itself still
+depends on economic meaning, missing protection, and exploitability.
+
+Recent pre-mortem systems apply program analysis and LLMs to price
+manipulation. PriceSleuth identifies core price-calculation logic, uses an LLM
+to locate price calculation statements, and applies dependency and propagation
+analysis to assist price-manipulation detection \citep{pricesleuth}.
+PMDetector combines formal attack modeling, static taint analysis, LLM-based
+filtering and attack simulation, and static validation for DeFi price
+manipulation vulnerabilities \citep{pmdetector}. These works move closer to
+proactive detection, but their reported evaluation is still mainly organized
+around detection performance over vulnerable and benign contracts or protocols.
+This thesis instead asks whether the generated output is useful as an audit
+finding when an auditor reviews a complete repository.
+
+\section{LLM-Assisted Smart Contract Analysis}
+
+Large language models can inspect code snippets and produce security reasoning
+in natural language. For smart contract analysis, this ability is useful because
+many findings depend on explaining why a particular price dependency is
+economically meaningful and why a mitigation is missing or insufficient. LLMs
+can also summarize long evidence paths and generate audit-style descriptions.
+
+At the same time, LLMs are not reliable as unconstrained detectors. They can
+hallucinate vulnerabilities, overlook subtle mitigations, or produce plausible
+but unsupported explanations. This motivates hybrid designs where static
+analysis supplies concrete evidence and the LLM is constrained to reason over
+that evidence. Structured output further reduces ambiguity by forcing the model
+to return machine-checkable fields. The remaining challenge is not only whether
+the LLM-assisted system detects a vulnerability, but whether its report is
+localized, evidence-backed, and low-noise enough to help auditors.
+
+\section{Audit Reports as Evaluation Material}
+
+Many smart contract vulnerabilities are documented in public audit reports and
+contest findings. Platforms such as Solodit aggregate findings from audit firms
+and contests, while Code4rena and Sherlock publish contest reports and issue
+discussions \citep{solodit,code4rena,sherlock}. These findings often include a
+title, severity, affected protocol, vulnerability description, impact,
+proof-of-concept context, and mitigation recommendation.
+
+Audit findings are valuable for this thesis because they resemble the target
+output of an audit assistant. If a tool claims that it helps auditors, then its
+output should be compared with what auditors actually write: affected functions,
+root causes, impacts, and mitigations. Historical exploit labels are useful,
+but they are often too coarse. They identify that an attack happened; they may
+not provide enough structure to evaluate whether a generated report localizes
+the right code path.
+
+Using audit findings also introduces noise. Different auditors describe similar
+issues using different language. Some reports classify stale price, wrong
+decimal precision, or oracle misconfiguration as oracle issues even when they
+are not directly manipulable in a flash-loan setting. Some findings have
+available source code but no easily reproducible build. A robust evaluation must
+therefore separate collected findings, source-code-available findings, and
+build-verified findings.
+
+\section{Limitations of Binary Metrics}
+
+Precision, recall, and F1-score are standard metrics for vulnerability
+detection. They are easy to compute and useful for comparing classifiers. For
+audit assistance, however, they are incomplete. A binary true positive can hide
+several report-level errors.
+
+First, a detector may classify a protocol as vulnerable but identify the wrong
+code region. This still helps less than a report that points to the actual
+price-dependent logic involved in the finding. Second, a detector may produce
+too many vulnerable groups. If only one group is correct, binary scoring may
+still reward the tool while ignoring the extra manual review cost. Third, a
+detector may identify the correct code area but explain the wrong root cause or
+recommend the wrong mitigation. An auditor would then need to reinterpret the
+report before it becomes useful.
+
+These problems motivate report-level evaluation. A generated report should be
+judged by localization accuracy, root-cause explanation, impact and mitigation
+agreement, semantic similarity to the ground-truth explanation, and the number
+of unsupported extra reports. Audit report language is diverse, so exact text
+matching is too brittle. Two reports may describe the same missing TWAP
+mitigation using different words. A semantic similarity score can capture
+meaning overlap better than lexical overlap, but it must be used together with
+localization and mitigation checks. This thesis therefore treats binary metrics
+as a baseline rather than the final measure of success.

@@ -1,0 +1,113 @@
+% !TeX root = ../main.tex
+
+\chapter{Conclusion and Future Work}
+
+\section{Conclusion}
+
+This thesis studies how PMDetector-style workflows can be evaluated as
+audit-assistance systems rather than only as binary vulnerability classifiers.
+Price manipulation vulnerabilities are difficult to detect because the
+dangerous behavior depends on both data flow and economic context. A price-like
+source is not always vulnerable, and an economically meaningful sink is not
+always controlled by a manipulable value. Static analysis can identify possible
+flows, but it tends to over-approximate. LLMs can reason about code context and
+missing mitigations, but they require concrete evidence and structured output
+to be useful.
+
+The prototype developed for this thesis combines these two strengths. It uses
+Slither-based taint analysis to identify candidate flows, canonical source
+records to merge equivalent sources, representative path generation to reduce
+raw path redundancy, and a staged LLM workflow to classify sources, triage sink
+impact, and emit audit-style root-cause findings. The output is designed to be
+traceable: each final finding refers back to concrete static-analysis evidence.
+
+The main argument of this thesis is that protocol-level precision, recall, and
+F1-score are insufficient for evaluating such systems. A detector can correctly
+label a project as vulnerable while still pointing to the wrong path, naming
+the wrong function, explaining the wrong mitigation, or producing many extra
+reports. These failures matter because auditors do not only need a yes-or-no
+answer. They need precise, actionable, and low-noise reports.
+
+To address this gap, the thesis proposes a report-level evaluation framework
+based on audit findings. The framework combines binary metrics with
+localization checks, semantic explanation similarity, mitigation agreement, and
+an over-reporting penalty. This design is intended to measure whether generated
+reports are actually useful in an audit workflow.
+
+\section{Current Status}
+
+The current implementation should be understood as an initial prototype. It has
+working components for taint analysis, source and sink tracking, path grouping,
+LLM prompt generation, staged LLM execution, JSON validation, and preliminary
+dataset organization. Existing artifacts show that the workflow can produce
+plausible findings for projects such as Spartan and Predy. They also reveal
+important limitations, such as missing sink coverage in some projects.
+
+The current dataset work also remains in progress. The collected audit-finding
+CSV contains useful metadata for filtering and evaluation, and the HIGH dataset
+slice includes build-readiness checks. However, final quantitative evaluation
+requires a clearly frozen build-verified subset and manually reviewed ground
+truth labels.
+
+\section{Future Work}
+
+\subsection{Complete Sanity Verification}
+
+The most important implementation task is to complete sanity verification.
+Static reachability and LLM reasoning should be checked against concrete
+mitigation patterns. Future rules should cover TWAP adequacy, oracle staleness,
+deviation checks, slippage checks, access control, time-based controls,
+fee-on-transfer behavior, and protocol-specific guard conditions. These checks
+would reduce false positives and make LLM findings more defensible.
+
+\subsection{Expand Sink Coverage}
+
+Preliminary artifacts show that source identification can succeed while sink
+matching fails. Future work should expand sink definitions beyond the current
+patterns. In particular, the analyzer should better capture protocol-specific
+accounting updates, vault share calculations, liquidity-position updates,
+reward eligibility checks, and liquidation-adjacent helper functions. Each new
+sink definition should be tested against real audit findings.
+
+\subsection{Freeze a Build-Verified Dataset}
+
+The final evaluation should use a frozen dataset split. Each project should
+record the repository commit, compiler version, toolchain, build command,
+required environment variables, and analysis target. Findings should be
+categorized as price manipulation, related manipulation, or out of scope.
+Without a frozen dataset, results will be hard to reproduce and compare.
+
+\subsection{Calibrate Semantic Matching}
+
+The semantic explanation score currently uses a working threshold. Future work
+should build a small validation set of prediction-ground-truth pairs labeled by
+human reviewers. The embedding model and threshold should then be calibrated
+against this validation set. This step is necessary before semantic similarity
+can be treated as a reliable metric.
+
+\subsection{Implement Stronger Baselines}
+
+A direct PMDetector reproduction is difficult without the original source code,
+but useful baselines are still possible. One baseline can use the same static
+analysis front end with a single PMDetector-style prompt that emits
+\texttt{is\_high\_risk}, vulnerable functions, vulnerable groups, and a reason.
+Another baseline can evaluate static analysis alone without LLM filtering.
+Comparing these baselines with the staged workflow would clarify which parts of
+the design improve report-level usefulness.
+
+\subsection{Human Auditor Study}
+
+The strongest validation would involve human auditors. Given a set of generated
+reports, auditors could rate whether each report helps them locate the issue,
+understand the root cause, and decide on mitigation. Such a study would
+directly evaluate the thesis claim that report-level metrics better capture
+audit usefulness than binary labels alone.
+
+\section{Final Remarks}
+
+LLM-assisted security tools should not be evaluated only by whether they can
+say that a project is vulnerable. For practical auditing, the harder and more
+important question is whether they can explain the vulnerability accurately,
+localize it precisely, and avoid unnecessary noise. This thesis takes a step
+toward that goal by implementing a PMDetector-inspired prototype and proposing
+an audit-centered evaluation framework for price manipulation detection.

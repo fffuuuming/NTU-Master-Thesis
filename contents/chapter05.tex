@@ -1,0 +1,236 @@
+% !TeX root = ../main.tex
+
+\chapter{Evaluation}
+
+\section{Evaluation Goals}
+
+The evaluation is designed to answer whether the prototype produces reports
+that are useful for auditors. This differs from a pure detector evaluation. A
+detector evaluation asks whether the system predicts that a project is
+vulnerable. An audit-usefulness evaluation asks whether the system points to
+the right code, explains the right root cause, and avoids excessive false
+reports.
+
+The evaluation therefore has three goals:
+
+\begin{enumerate}
+  \item Measure protocol-level detection performance for compatibility with
+        prior work.
+  \item Measure report-level correctness, including localization and
+        explanation quality.
+  \item Measure over-reporting, because unsupported extra findings increase
+        manual audit cost.
+\end{enumerate}
+
+\section{Dataset Plan}
+
+The planned dataset is built from public audit findings. Each record contains
+metadata such as report date, audit firm, severity, protocol, title, tags,
+year, source-code link, Solodit URL, GitHub link, summary, whether the issue is
+classified as price, reward, or vote manipulation, whether source code is
+available, and remarks.
+
+The dataset should be separated into three subsets.
+
+\textbf{Collected findings} include all candidate findings from the collection
+pipeline. This set is useful for understanding the distribution of protocols,
+firms, severities, and issue categories, but it may contain entries that are
+not directly analyzable.
+
+\textbf{Source-available findings} include records with public source code.
+This set is closer to the target evaluation but still may include repositories
+that are difficult to build or incomplete.
+
+\textbf{Build-verified findings} include records whose repositories can be
+compiled or analyzed reproducibly. This is the primary subset for quantitative
+evaluation because the static-analysis front end depends on buildable Solidity
+projects.
+
+This separation avoids overstating the dataset size. A large collected dataset
+does not automatically imply a large reproducible evaluation set.
+
+\section{Metrics}
+
+\subsection{Binary Metrics}
+
+The first metric group follows standard vulnerability detection evaluation. A
+project-level prediction is positive if the system emits at least one
+price-manipulation finding for the project. Ground truth is positive if the
+project contains at least one relevant audit finding. From these labels, the
+evaluation computes true positives, false positives, false negatives,
+precision, recall, and F1-score.
+
+These metrics are useful but incomplete. They are reported mainly to make the
+results comparable with prior work such as PMDetector \citep{pmdetector}.
+
+\subsection{Localization Metrics}
+
+The second metric group evaluates whether a generated report points to the
+right place. Localization can be measured at several levels:
+
+\begin{itemize}
+  \item Protocol-level localization: the prediction belongs to the same
+        project as the ground-truth finding.
+  \item Contract or function localization: the predicted root-cause location
+        names the same contract, function, wrapper, or semantically equivalent
+        code region.
+  \item Source localization: the predicted vulnerable read corresponds to the
+        same price source or source wrapper.
+  \item Sink localization: the predicted sink corresponds to the same economic
+        operation as the audit finding.
+  \item Mitigation localization: the predicted missing mitigation matches the
+        ground-truth mitigation category.
+\end{itemize}
+
+These levels make partial success visible. For example, a prediction may
+identify the correct spot price source but miss the exact liquidation sink.
+Another prediction may identify the affected function but give the wrong
+mitigation.
+
+\subsection{Semantic Explanation Score}
+
+The explanation score compares the generated explanation with the audit-finding
+summary. The planned implementation embeds both texts using a sentence
+embedding model and computes cosine similarity:
+
+\[
+\mathrm{DescriptionScore}(p, g) =
+\begin{cases}
+\cos(E(p), E(g)), & \cos(E(p), E(g)) > \tau \\
+0, & \text{otherwise}
+\end{cases}
+\]
+
+where $p$ is the predicted explanation, $g$ is the ground-truth explanation,
+$E(\cdot)$ is the embedding function, and $\tau$ is the similarity threshold.
+The current working threshold is 0.7, inspired by semantic evaluation settings
+such as the Bastet competition \citep{bastet}. This value must be calibrated on
+human-labeled prediction-ground-truth pairs before final conclusions are drawn.
+
+\subsection{Over-Reporting Penalty}
+
+The over-reporting penalty measures how many extra reports the system emits for
+a project:
+
+\[
+\mathrm{Penalty}(p) =
+\max(0, \#\mathrm{Predictions}(p) - \#\mathrm{GroundTruth}(p)).
+\]
+
+This penalty is important because the static-analysis phase intentionally
+over-approximates candidate paths. Without a penalty, the system could improve
+recall by emitting many weak findings. In an audit setting, such behavior is
+costly because each report must be checked manually.
+
+\section{Matching Procedure}
+
+For each project, the evaluation builds a pairwise score matrix between
+predicted reports and ground-truth audit findings. Each pair score combines
+localization agreement, mitigation agreement, and semantic explanation
+similarity. Scores below a minimum threshold are set to zero. Maximum-weight
+bipartite matching is then used to assign predictions to ground-truth findings.
+
+After matching, each prediction is classified as matched or unmatched, and each
+ground-truth finding is classified as covered or missed. The evaluation reports
+the total matched score, unmatched predictions, missed findings, binary metrics,
+and over-reporting penalty.
+
+\section{Baselines}
+
+The main baseline is a PMDetector-style binary evaluation of the current
+workflow. Under this baseline, a project is counted as correctly detected if at
+least one relevant vulnerability is found. This baseline intentionally ignores
+whether the report localizes the right path or explains the right root cause.
+
+If time permits, a second baseline should be implemented with a simpler
+PMDetector-style prompt that emits one report containing
+\texttt{is\_high\_risk}, vulnerable functions, vulnerable groups, and a reason.
+Comparing this baseline with the staged workflow would show whether decomposing
+source classification, sink triage, and root-cause judgment improves
+audit-useful output.
+
+The published PMDetector results should be treated as prior-work context rather
+than a direct baseline unless the dataset and implementation are aligned. The
+current thesis uses different ground truth and different evaluation metrics.
+
+\section{Preliminary Observations}
+
+The current prototype has generated artifacts for several projects. These
+artifacts are preliminary and should not be interpreted as final evaluation
+results. They are useful for checking whether the workflow produces meaningful
+intermediate outputs.
+
+\subsection{Spartan}
+
+For the Spartan project, one analysis summary reports 25 analyzed contracts, 67
+raw source candidates, 17 canonical sources, 33 sink sites, 217 raw vulnerable
+paths, and 97 representative paths. The LLM report filters eight source labels
+down to two retained spot-price sources: \texttt{iPOOL.baseAmount} and
+\texttt{iPOOL.tokenAmount}. It then marks 13 sink groups as dangerous and emits
+two vulnerable root-cause findings.
+
+This result illustrates the intended pipeline behavior. Static analysis
+generates many raw paths, representative grouping reduces redundancy, and the
+LLM collapses evidence into a smaller number of root-cause findings. The
+remaining question for the final evaluation is whether those findings match the
+corresponding audit or incident ground truth.
+
+\subsection{Predy}
+
+For Predy, the LLM report begins from 41 representative paths and six source
+labels. It keeps \texttt{IUniswapV3PoolState.slot0} and
+\texttt{Trade.getSqrtPrice}, drops fee, liquidity, TWAP, and protocol-state
+sources, and emits two vulnerable root-cause findings. The generated
+explanations point to spot-price use in \texttt{Perp.reallocate} and
+\texttt{Trade.trade}, with missing TWAP or slippage checks.
+
+This result shows the value of source classification. Without the first LLM
+stage, liquidity and protocol-state values could become false positives. The
+stage decomposition helps focus root-cause judgment on price-like sources.
+
+\subsection{Abracadabra Money}
+
+For one Abracadabra Money run, the summary reports 87 analyzed contracts, 56
+raw source candidates, and 23 canonical sources, but zero sink sites and zero
+representative paths. This is a useful failure case. It may indicate that the
+current sink definitions do not cover the relevant economic operation, that the
+selected analysis target does not include the affected code path, or that the
+issue requires modeling that is not yet implemented.
+
+This case supports the need for transparent reporting. A binary evaluation
+would count the project as a miss if ground truth contains a relevant finding,
+but the engineering diagnosis is more specific: source identification may work,
+while sink coverage fails.
+
+\section{Threats to Validity}
+
+\textbf{Construct validity.} Semantic similarity may not perfectly represent
+auditor judgment. The embedding model and threshold must be calibrated against
+human-labeled pairs.
+
+\textbf{Internal validity.} LLM results may depend on model version, prompt
+wording, temperature, and chunking. Final experiments should fix these
+parameters and record prompt artifacts.
+
+\textbf{External validity.} The thesis focuses on price manipulation in
+Solidity DeFi protocols. Results may not generalize to other vulnerability
+classes, non-EVM chains, or protocols with off-chain components.
+
+\textbf{Dataset validity.} Audit findings differ in specificity and quality.
+Some findings are disputed, duplicated, or only partially related to price
+manipulation. The dataset must document inclusion and exclusion decisions.
+
+\textbf{Implementation validity.} The prototype may miss paths because of
+dynamic dispatch, proxy patterns, incomplete build targets, missing sink
+definitions, or unsupported Solidity patterns. These failures should be
+reported rather than hidden.
+
+\section{Expected Outcome}
+
+The expected result is not necessarily that the staged workflow achieves the
+highest binary F1-score. The expected contribution is a clearer measurement of
+audit usefulness. If a system has good protocol-level detection but poor
+localization, weak explanation matching, or high over-reporting, then binary
+metrics alone are misleading. Conversely, if staged source and sink reasoning
+improves report-level matching, this would support the thesis that LLM-assisted
+security tools should be evaluated at the report level.
