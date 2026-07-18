@@ -2,28 +2,24 @@
 
 \begin{abstract}
 
-隨著去中心化金融快速發展，智慧合約承載的資產規模與金融邏輯日益複雜，其安全性也成為區塊鏈應用能否被信任的關鍵。價格操縱漏洞，尤其是可透過閃電貸放大影響的情境，並不只是單一程式語法錯誤；漏洞是否成立取決於合約如何取得價格、該價格如何影響清算、抵押品估值、鑄幣、會計狀態或其他關鍵金融操作，以及系統是否具備足夠的時間加權平均價格、預言機驗證、滑價限制或其他保護機制。
+隨著去中心化金融快速發展，智慧合約承載的資產規模與金融邏輯日益複雜，其安全性也成為區塊鏈應用能否被信任的關鍵。價格操縱漏洞，尤其在可由閃電貸放大影響的情境中，並不只是單一程式語法錯誤；其風險取決於合約如何取得價格、該價格如何影響清算、抵押品估值等關鍵金融操作，以及系統是否具備足夠的保護機制。
 
-過往已有許多研究嘗試以交易分析、靜態分析或大型語言模型輔助智慧合約漏洞偵測。然而，既有工作多以攻擊事件、單一合約、協定層級標籤或二元分類結果作為主要評估單位，與真實審計流程仍存在落差。審計人員通常面對的是完整的協定程式碼庫，並需要能指出可疑程式位置、根因、影響、修補方向與支持證據的發現項目；若工具產生過多不受支持的警報，即使偵測到正確漏洞，也可能增加人工確認成本。
+過往已有許多研究嘗試以交易分析、靜態分析或大型語言模型輔助智慧合約漏洞偵測。然而，既有工作多以攻擊事件、單一合約、整體協定標記或二元分類結果作為主要評估單位，與真實審計流程仍有落差。審計人員通常面對的是完整的協定程式碼庫，並需要能指出可疑程式位置、根因、影響、修補方向與支持證據的發現項目。
 
-本研究以協助審計人員快速定位閃電貸價格操縱漏洞為目標，設計並實作一套結合靜態分析與大型語言模型推論的原型架構。系統先從完整程式碼庫中萃取候選資料流證據與相關程式脈絡，再透過路徑摘要與分組降低重複資訊，最後由分階段大型語言模型流程產生結構化的審計式發現項目。每一項發現皆包含可疑程式位置、根因說明、影響描述、缺失的保護機制與支持證據，使審計人員能回溯工具判斷並進一步驗證。
+本研究以協助審計人員快速定位閃電貸價格操縱漏洞為目標，設計並實作一套結合靜態分析與大型語言模型推論的分析流程。系統先從完整程式碼庫中萃取候選資料流證據與相關程式脈絡，再透過路徑摘要與分組降低重複資訊，最後由分階段大型語言模型流程產生結構化的審計式發現項目。每一項發現皆包含可疑程式位置、根因說明、影響描述、缺失的保護機制與支持證據，使審計人員能回溯工具判斷並進一步驗證。評估方面，本研究結合協定層級的精確率、召回率與調和平均分數，以及以公開審計報告發現項目為對照的報告層級評估。
 
-為了評估該工具是否能服務於審計情境，本研究不僅保留協定層級的精確率、召回率與調和平均分數，也進一步設計報告層級的評估框架。此框架以公開審計報告中的發現作為比較目標，從漏洞定位、根因解釋、影響與修補建議一致性、語意相似度，以及過度回報懲罰等面向衡量輸出品質，藉此反映工具對審計人員的實際幫助與可能造成的額外負擔。
-
-初步結果與原型觀察顯示，此工作流程能將大量原始資料流證據收斂為較少且可追溯的審計式發現項目，並揭露單純二元分類指標難以呈現的失敗模式，例如錯誤的程式定位、過多不受支持的報告，以及根因解釋偏移。本研究的主要貢獻在於將大型語言模型輔助智慧合約漏洞偵測的評估重心，從是否偵測到漏洞推進到是否能幫助審計人員在完整程式碼庫中快速定位並理解閃電貸價格操縱漏洞。
+研究結果顯示，此流程能將大量原始資料流證據收斂為較少且可追溯的審計式發現項目，並揭露二元分類指標難以呈現的失敗模式，例如錯誤的程式定位、過多不受支持的報告，以及根因解釋偏移。本研究的主要貢獻在於將大型語言模型輔助智慧合約漏洞偵測的評估重心，從是否偵測到漏洞推進到是否能幫助審計人員在完整程式碼庫中快速定位並理解閃電貸價格操縱漏洞。
 
 \end{abstract}
 
 \begin{abstract*}
 
-Decentralized finance (DeFi) has made smart contracts responsible for increasingly complex financial logic and high-value assets. As a result, smart contract security has become central to the reliability of blockchain applications. Flash-loan price manipulation is a particularly challenging vulnerability class because the risk cannot be determined from syntax alone. Whether a vulnerability exists depends on how a contract obtains price information, how that value affects liquidation, collateral valuation, minting, accounting, or other financial operations, and whether sufficient protection such as time-weighted pricing, oracle validation, slippage checks, or protocol-specific safeguards is applied.
+Decentralized finance (DeFi) has made smart contracts responsible for increasingly complex financial logic and high-value assets. As a result, smart contract security has become central to the reliability of blockchain applications. Flash-loan price manipulation is a particularly challenging vulnerability class because the risk cannot be determined from syntax alone. Whether a vulnerability exists depends on how a contract obtains price information, how that value affects liquidation, collateral valuation, or other financially sensitive operations, and whether sufficient protection is applied.
 
-Prior research has explored transaction analysis, static analysis, and large language models (LLMs) for smart contract vulnerability detection. However, many evaluations still focus on attack events, individual contracts, protocol-level labels, or binary classification results. This does not fully match real audit workflows, where auditors inspect an entire protocol repository and expect findings that identify suspicious code locations, root causes, impacts, mitigation strategies, and supporting evidence. A tool that reports too many unsupported issues may still increase manual verification cost even when it detects a real vulnerability.
+Prior research has explored transaction analysis, static analysis, and large language models (LLMs) for smart contract vulnerability detection. However, many evaluations still focus on attack events, individual contracts, protocol-level labels, or binary classification results. This does not fully match real audit workflows, where auditors inspect an entire protocol repository and expect findings that identify suspicious code locations, root causes, impacts, mitigation strategies, and supporting evidence.
 
-This thesis therefore studies flash-loan price manipulation detection as an audit-assistance problem. It designs and implements a prototype workflow that extracts candidate data-flow evidence and relevant code context from a repository, reduces redundant paths into representative evidence, and uses a staged LLM workflow to generate structured audit-style findings. Each finding is designed to report the suspicious code location, root cause, impact, missing protection, and supporting evidence so that auditors can trace and verify the tool's judgment.
+This thesis therefore studies flash-loan price manipulation detection as an audit-assistance problem. It designs and implements a workflow that extracts candidate data-flow evidence and relevant code context from a repository, reduces redundant paths into representative evidence, and uses a staged LLM workflow to generate structured audit-style findings. Each finding reports the suspicious code location, root cause, impact, missing protection, and supporting evidence so that auditors can trace and verify the tool's judgment. The evaluation combines protocol-level detection metrics with report-level comparison against public audit findings.
 
-The evaluation design combines protocol-level detection metrics with report-level measurements. In addition to precision, recall, and F1-score, the framework compares generated reports against public audit findings using localization agreement, root-cause explanation quality, impact and mitigation alignment, semantic similarity, and an over-reporting penalty that reflects manual review cost.
-
-Preliminary prototype observations suggest that the workflow can reduce large sets of raw data-flow evidence into fewer traceable audit-style findings while exposing failure modes that binary metrics tend to hide, including incorrect code localization, unsupported extra reports, and root-cause drift. The main contribution of this thesis is to shift the evaluation of LLM-assisted smart contract security tools toward whether they help auditors quickly localize and understand flash-loan price manipulation vulnerabilities in complete repositories.
+The results show that the workflow can reduce large sets of raw data-flow evidence into fewer traceable audit-style findings while exposing failure modes that binary metrics tend to hide, including incorrect code localization, unsupported extra reports, and root-cause drift. The main contribution of this thesis is to shift the evaluation of LLM-assisted smart contract security tools toward whether they help auditors quickly localize and understand flash-loan price manipulation vulnerabilities in complete repositories.
 
 \end{abstract*}

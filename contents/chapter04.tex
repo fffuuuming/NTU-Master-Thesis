@@ -2,12 +2,12 @@
 
 \chapter{Implementation}
 
-\section{Prototype Overview}
+\section{System Overview}
 
-The prototype is implemented in Python and built on top of Slither. The main
+The system is implemented in Python and built on top of Slither. The main
 entry point is a price manipulation analyzer that accepts a Solidity file or
 project directory, initializes Slither, constructs source and sink managers, and
-runs a project-level taint tracker. The prototype also includes command-line
+runs a project-level taint tracker. The system also includes command-line
 drivers for running taint analysis, generating representative paths, previewing
 LLM prompts, and executing the staged LLM workflow.
 
@@ -43,7 +43,7 @@ function.
 
 \section{Source and Sink Configuration}
 
-The prototype defines configurable patterns for common price sources and sinks.
+The implementation defines configurable patterns for common price sources and sinks.
 Oracle patterns include function names such as \texttt{latestRoundData},
 \texttt{getPrice}, \texttt{getReserves}, \texttt{consult}, and
 \texttt{fetchPrice}. Flash-loan patterns include \texttt{flashLoan},
@@ -92,9 +92,10 @@ preserves marked sink lines. The resulting prompt entries contain source
 records, sink groups, sink function code, state writes, external calls,
 representative path counts, raw path counts, and source-sink chains.
 
-This abstraction is a practical requirement. In preliminary runs, one project
-can produce hundreds of raw paths. Passing all of them directly to an LLM would
-increase cost and would also make the final report difficult to interpret.
+This abstraction is a practical requirement. In representative runs, one
+project can produce hundreds of raw paths. Passing all of them directly to an
+LLM would increase cost and would also make the final report difficult to
+interpret.
 
 \section{Prompt Generation}
 
@@ -130,7 +131,7 @@ automatic matching against ground truth.
 
 \section{Dataset Utilities}
 
-The prototype includes scripts for collecting and organizing audit findings.
+The implementation includes scripts for collecting and organizing audit findings.
 The dataset CSV records report date, audit firm, severity, protocol, title,
 tags, year, compilation status, source-code link, Solodit URL, GitHub link,
 summary, manipulation label, source-code availability, and remarks. This format
@@ -159,16 +160,17 @@ The LLM engine also has a standalone test driver. Given an existing
 step through prompts interactively. This separation makes it possible to debug
 static analysis and LLM reasoning independently.
 
-\section{Current Implementation Limitations}
+\section{Implementation Limitations}
 
-The current implementation is a prototype. It focuses on taint analysis,
-representative path generation, and staged LLM report generation. Sanity
-verification rules are not yet fully implemented. In particular, checks for
-access control, TWAP adequacy, staleness validation, slippage protection,
-fee-on-transfer behavior, and time-based controls need to be formalized.
+The implementation delivered in this thesis focuses on
+taint analysis, representative path generation, and staged LLM report
+generation. Sanity-verification rules are still limited. In particular, checks
+for access control, TWAP adequacy, staleness validation, slippage protection,
+fee-on-transfer behavior, and time-based controls are not yet modeled in a
+systematic way.
 
-The current sink definitions also require expansion. Preliminary artifacts show
+The sink definitions also remain incomplete. The case studies in Chapter 5 show
 cases where canonical sources are found but no sink sites are retained. This
 can happen when the analyzed target does not include the relevant code path, or
 when the sink model does not cover the protocol's specific economic operation.
-These limitations are treated as part of the evaluation rather than hidden.
+These limitations are reported explicitly rather than hidden.

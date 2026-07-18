@@ -4,169 +4,196 @@
 
 \section{Price Manipulation in DeFi}
 
-Price manipulation vulnerabilities occur when a protocol uses a price-related
-value that can be influenced by an attacker. In DeFi systems, price is not only
-used for swaps. It can affect collateral valuation, liquidation eligibility,
-minting and burning, reward accounting, vault share calculation, margin
-requirements, protocol-owned liquidity management, and other economic state
-transitions. A short-lived price deviation may be enough to extract value if the
-protocol reads the manipulated value and immediately commits an irreversible
-state change.
+Price manipulation vulnerabilities arise when a protocol relies on a
+price-related value that can be influenced by an attacker. In DeFi systems,
+price is not only used for swaps. It also affects collateral valuation,
+liquidation eligibility, minting and burning, vault share calculation, reward
+accounting, margin requirements, and other economically sensitive state
+transitions. A short-lived price deviation may therefore be enough to extract
+value if the protocol reads the manipulated value and immediately commits an
+irreversible state change.
 
-Many price manipulation attacks rely on flash loans or low-cost temporary
-liquidity movement. The attacker changes the apparent price in a pool, triggers
-a price-dependent operation, and then restores the market state before the end
-of the transaction. Because the manipulated state can be transient, detecting
-the vulnerability requires understanding how a price value is obtained, how it
-is consumed by financial logic, and whether the surrounding implementation
-contains adequate protection. Merely checking whether a contract imports an
-oracle interface is not enough.
+Many such attacks are amplified by flash loans or other low-cost temporary
+liquidity movements. The attacker first distorts the apparent market state,
+then triggers a price-dependent operation, and finally restores the pool state
+before the transaction ends. This makes the vulnerable condition highly
+context-dependent. Detecting the issue requires understanding how a price is
+obtained, how it is propagated through the program, and where it influences a
+financial decision. Merely observing that a contract reads an oracle interface
+or a pool state variable is not sufficient.
 
 Common risky price dependencies include direct reads from AMM reserves, current
-pool ticks, current square-root prices, direct spot price helper functions,
-stale oracle answers, and protocol-specific wrappers around these values.
-Common affected operations include collateral checks, liquidation paths, margin
-updates, swap output calculation, liquidity minting, reward release, and
-accounting state writes. A safe implementation usually applies mitigation such
-as TWAP, independent oracle cross-checks, staleness checks, deviation bounds,
-slippage checks, or delayed settlement. Therefore, the same syntactic pattern
-can be safe in one context and unsafe in another.
+pool ticks, square-root prices, direct spot-price helper functions, stale
+oracle answers, and protocol-specific wrappers around those values.
+Common affected operations include collateral checks, liquidation logic, margin
+updates, swap output calculations, liquidity minting, reward release, and
+accounting state writes. A safe implementation often adds protection such as
+time-weighted average prices, independent oracle cross-checks, staleness
+checks, deviation bounds, slippage checks, or delayed settlement. The central
+difficulty of price manipulation is therefore not recognizing one dangerous
+API call, but evaluating the relationship among price source, economic sink,
+and missing protection in the broader protocol context.
 
 \section{Smart Contract Auditing Practice}
 
-Smart contract auditing is usually performed at the level of a full protocol
-repository. Auditors inspect multiple contracts, helper libraries, external
-interfaces, deployment assumptions, tests, and business logic. For DeFi
-protocols, this means that an auditor often needs to trace how an asset price is
-computed, how that value crosses contract boundaries, and where it influences
-economically sensitive state transitions.
+Smart contract auditing is typically conducted at the level of a complete
+protocol repository rather than an isolated function or transaction. Auditors
+inspect multiple contracts, helper libraries, inherited modules, deployment
+assumptions, integration points, tests, and business logic together. For DeFi
+protocols, this often means tracing how a price is computed, how it crosses
+contract boundaries, and where it influences economically sensitive state
+transitions.
 
 The output of an audit is also richer than a vulnerability label. A typical
-finding includes a title, severity, affected code location or snippet, root
-cause, impact, proof-of-concept context or supporting evidence, and mitigation
-recommendation. These elements matter because developers need to reproduce and
-fix the issue, and auditors need to justify why the reported behavior is risky.
-An automated tool that aims to assist audits should therefore be evaluated by
-whether it can produce findings with similar information structure, not only by
-whether it labels a protocol as vulnerable.
+finding contains a title, severity, affected code location or snippet, root
+cause, impact, supporting evidence or proof-of-concept context, and mitigation
+recommendation. These elements matter because developers must reproduce and fix
+the issue, while auditors must justify why the reported behavior is risky. An
+automated tool that aims to assist audits should therefore be judged not only
+by whether it predicts that a protocol is vulnerable, but by whether it
+produces findings that auditors can directly inspect and validate.
 
-\section{Transaction-Based and Post-Hoc Detection}
+\section{Related Work}
 
-Transaction-based systems analyze on-chain behavior to detect attacks that have
-already occurred or suspicious transactions that resemble known attack
-patterns. DeFiRanger recovers high-level DeFi semantics from raw Ethereum
-transactions by constructing cash-flow trees and lifting low-level transfers
-into actions such as trades and liquidity operations \citep{defiranger}. It
-then detects direct and indirect price manipulation attacks using patterns
-expressed over the recovered semantics. This line of work shows that DeFi price
-manipulation requires reasoning about financial behavior rather than only code
-syntax.
+\subsection{Price Manipulation Detection Systems}
 
-DeFiScope extends this post-hoc direction by using LLM reasoning to abstract
-price calculations from smart contract source code and combine them with
-high-level DeFi operations recovered from transaction data
-\citep{defiscope}. It targets both standard and custom price models and reports
-strong attack-detection results on real-world transactions. However, the
-primary unit remains attack or transaction detection. Such systems are valuable
-for monitoring and incident discovery, but they do not directly answer whether
-an auditor reviewing a repository before deployment can obtain a precise
-audit-style finding with code location, root cause, impact, and mitigation.
+One major direction studies price manipulation through transaction-level or
+post-hoc analysis. DeFiRanger reconstructs high-level DeFi semantics from raw
+Ethereum transactions by building cash-flow trees and lifting low-level token
+transfers into operations such as trades and liquidity changes
+\citep{defiranger}. DeFiScope extends this line by combining transaction-level
+DeFi operations with LLM-based abstraction of price calculation logic from
+source code, and targets both standard and custom price models
+\citep{defiscope}. These systems show that price manipulation cannot be
+understood from syntax alone and instead requires reasoning about financial
+behavior and price semantics. However, their primary output unit remains attack
+or transaction detection, which is valuable for monitoring and incident
+analysis but does not directly answer whether an auditor can obtain a precise
+pre-deployment finding from a repository.
 
-\section{Code-Based and Pre-Mortem Detection}
+Another direction targets code-based or pre-mortem detection. Static analysis
+is attractive in this setting because smart contract code is transparent and
+many vulnerability patterns leave structural traces in control flow, data flow,
+and cross-contract interactions. Slither provides a widely used foundation for
+such analyses by parsing Solidity code, building intermediate
+representations, and exposing program information suitable for custom security
+analysis \citep{slither}. Taint analysis is especially relevant for price
+manipulation because it can model whether a price-like value reaches a
+financially sensitive operation. In this thesis, source and sink are analysis
+abstractions rather than vulnerability labels. They identify potentially
+relevant flows, while exploitability still depends on economic meaning and
+missing protection.
 
-Code-based approaches inspect source code or bytecode before exploitation. This
-direction is closer to audit assistance because it can reason about a protocol
-without waiting for an attack transaction. Static analysis is attractive in this
-setting because deployed smart contract code is transparent and many
-vulnerability patterns leave structural traces in the program. Slither is a
-widely used static analysis framework for Solidity. It parses contracts,
-constructs control-flow and call information, and exposes SlithIR, an
-intermediate representation suitable for custom analyses \citep{slither}.
+Recent pre-mortem systems move closer to this thesis. PriceSleuth identifies
+core price-calculation logic, uses an LLM to locate price-calculation
+statements, and then applies dependency and propagation analysis to detect
+state-manipulation vulnerabilities \citep{pricesleuth}. PMDetector combines
+formal attack modeling, static taint analysis, LLM-based filtering and attack
+simulation, and static validation to detect DeFi price manipulation
+vulnerabilities \citep{pmdetector}. Both works are closer to audit assistance
+than pure post-hoc attack detection because they reason about code before
+exploitation. Nevertheless, their reported evaluation is still centered mainly
+on detection performance over vulnerable and benign contracts or protocols.
 
-Taint analysis is a common static-analysis technique. In this thesis, source
-and sink are analysis abstractions: a source is a program value chosen as a
-starting point for propagation, and a sink is a program location where reaching
-that value may be relevant to a security question. For price manipulation, this
-abstraction can model whether a price-like value reaches a financial operation.
-However, the abstraction is only a tool model. The vulnerability itself still
-depends on economic meaning, missing protection, and exploitability.
+Some recent systems also begin to frame the problem as an adaptive auditing
+workflow. SmartAuditFlow introduces a plan-execute framework in which the LLM
+dynamically revises its audit strategy based on intermediate outputs, integrates
+external knowledge such as static analysis and retrieval-augmented generation,
+and produces comprehensive security reports \citep{smartauditflow}. This
+direction is important because it moves the field closer to multi-stage audit
+reasoning rather than one-shot classification. Still, the target remains
+general smart contract auditing, and the evaluation does not focus on
+repository-level flash-loan price manipulation findings with explicit
+source-sink-mitigation alignment.
 
-Recent pre-mortem systems apply program analysis and LLMs to price
-manipulation. PriceSleuth identifies core price-calculation logic, uses an LLM
-to locate price calculation statements, and applies dependency and propagation
-analysis to assist price-manipulation detection \citep{pricesleuth}.
-PMDetector combines formal attack modeling, static taint analysis, LLM-based
-filtering and attack simulation, and static validation for DeFi price
-manipulation vulnerabilities \citep{pmdetector}. These works move closer to
-proactive detection, but their reported evaluation is still mainly organized
-around detection performance over vulnerable and benign contracts or protocols.
-This thesis instead asks whether the generated output is useful as an audit
-finding when an auditor reviews a complete repository.
+\subsection{LLM-Assisted Detection}
 
-\section{LLM-Assisted Smart Contract Analysis}
+Beyond price manipulation, a broader line of work studies how
+LLMs can assist smart contract vulnerability detection. GPTScan is an early and
+influential example that combines GPT with static analysis for smart contract
+logic vulnerability detection \citep{gptscan}. Instead of treating the LLM as a
+standalone oracle, GPTScan uses it as a code-understanding component to match
+candidate vulnerabilities against scenario descriptions and then validates key
+variables and statements through static confirmation. This hybrid design is
+important because it explicitly addresses one of the main weaknesses of direct
+LLM-based detection: high false-positive rates.
 
-Large language models can inspect code snippets and produce security reasoning
-in natural language. For smart contract analysis, this ability is useful because
-many findings depend on explaining why a particular price dependency is
-economically meaningful and why a mitigation is missing or insufficient. LLMs
-can also summarize long evidence paths and generate audit-style descriptions.
+Other work focuses on improving reasoning structure within the LLM itself.
+GPTLens frames smart contract vulnerability detection as a two-stage process in
+which one LLM role generates candidate vulnerabilities and another role
+discriminates among them \citep{gptlens}. The paper argues that there is a
+tension between maximizing recall and controlling false positives, and that
+multi-stage reasoning can partially manage this trade-off. This perspective is
+relevant to audit assistance because an auditor needs both broad coverage and
+low noise; simply sampling more candidate answers is not enough.
 
-At the same time, LLMs are not reliable as unconstrained detectors. They can
-hallucinate vulnerabilities, overlook subtle mitigations, or produce plausible
-but unsupported explanations. This motivates hybrid designs where static
-analysis supplies concrete evidence and the LLM is constrained to reason over
-that evidence. Structured output further reduces ambiguity by forcing the model
-to return machine-checkable fields. The remaining challenge is not only whether
-the LLM-assisted system detects a vulnerability, but whether its report is
-localized, evidence-backed, and low-noise enough to help auditors.
+A more model-centric direction improves the smart-contract-specific capability
+of LLMs through domain adaptation and explanation-oriented training.
+Smart-LLaMA introduces smart-contract-specific continual pre-training and
+explanation-guided fine-tuning, and explicitly targets vulnerability
+detection, explanation quality, and precise vulnerability location
+\citep{smartllama}. This is particularly relevant to the present thesis because
+it shows that LLM-based systems can be optimized not only for binary detection,
+but also for localization and explanation, which are closer to the needs of
+auditing.
 
-\section{Audit Reports as Evaluation Material}
+Another related direction treats auditing as a collaborative multi-agent
+process. LLM-SmartAudit uses a multi-agent conversational framework to detect
+and analyze smart contract vulnerabilities, and reports stronger performance
+than traditional auditing tools on its evaluation datasets
+\citep{llmsmartaudit}. While the vulnerability scope is broader than price
+manipulation, the paper reflects a growing trend: LLM systems are increasingly
+designed not merely to classify contracts, but to simulate aspects of audit
+reasoning and report generation.
 
-Many smart contract vulnerabilities are documented in public audit reports and
-contest findings. Platforms such as Solodit aggregate findings from audit firms
-and contests, while Code4rena and Sherlock publish contest reports and issue
-discussions \citep{solodit,code4rena,sherlock}. These findings often include a
-title, severity, affected protocol, vulnerability description, impact,
-proof-of-concept context, and mitigation recommendation.
+PMDetector is best understood as a price-manipulation-specific extension of
+this broader LLM-assisted literature. It inherits the general move toward
+hybrid reasoning, staged analysis, and richer semantic interpretation, but
+applies those ideas to a narrow and economically important vulnerability class
+\citep{pmdetector}. This thesis builds on the same general intuition, yet
+shifts the evaluation target further toward whether the final output is useful
+as a repository-level audit finding.
 
-Audit findings are valuable for this thesis because they resemble the target
-output of an audit assistant. If a tool claims that it helps auditors, then its
-output should be compared with what auditors actually write: affected functions,
-root causes, impacts, and mitigations. Historical exploit labels are useful,
-but they are often too coarse. They identify that an attack happened; they may
-not provide enough structure to evaluate whether a generated report localizes
-the right code path.
+\subsection{Audit Report Corpora and Benchmarks}
 
-Using audit findings also introduces noise. Different auditors describe similar
-issues using different language. Some reports classify stale price, wrong
-decimal precision, or oracle misconfiguration as oracle issues even when they
-are not directly manipulable in a flash-loan setting. Some findings have
-available source code but no easily reproducible build. A robust evaluation must
-therefore separate collected findings, source-code-available findings, and
-build-verified findings.
+Public audit reports and contest findings provide a natural source of real-world
+security artifacts. Platforms such as Solodit aggregate findings from multiple
+audit firms and contests, while Code4rena and Sherlock publish contest reports
+and discussions that contain vulnerability descriptions, affected code regions,
+impact statements, and remediation guidance \citep{solodit,code4rena,sherlock}.
+These artifacts are valuable because they more closely resemble the output
+expected from an audit assistant than coarse exploit labels or contract-level
+vulnerability tags.
 
-\section{Limitations of Binary Metrics}
+Recent work has begun to transform such reports into structured corpora. FORGE
+uses an LLM-driven pipeline to extract self-contained vulnerability information
+from real-world audit reports and classify the resulting findings under the CWE
+hierarchy \citep{forge}. GiAnt likewise distills real-world audit reports into
+structured findings and then applies quality assurance with an LLM-as-a-judge
+mechanism to produce a large audit-oriented corpus \citep{giant}. These works
+demonstrate that audit findings can be normalized into machine-usable records
+with fields such as vulnerability description, severity, location, impact, and
+mitigation, thereby making report-level evaluation more feasible.
 
-Precision, recall, and F1-score are standard metrics for vulnerability
-detection. They are easy to compute and useful for comparing classifiers. For
-audit assistance, however, they are incomplete. A binary true positive can hide
-several report-level errors.
+In parallel, benchmark design has also shifted toward repository-level audit
+tasks. ScaBench provides curated datasets from recent real-world smart contract
+audits together with official scoring tools for evaluating AI audit agents
+\citep{scabench}. EVMbench further expands the benchmark space by evaluating AI
+agents in detect, patch, and exploit modes over curated vulnerabilities drawn
+from historical audits \citep{evmbench}. Hound, in turn, uses a subset of
+ScaBench to study system-level reasoning in security audits through
+relation-first knowledge graphs and hypothesis-driven analysis
+\citep{hound}. These benchmarks move evaluation closer to practical auditing by
+treating repositories, vulnerability reports, and agent behavior as first-class
+benchmark objects rather than reducing everything to file-level labels.
 
-First, a detector may classify a protocol as vulnerable but identify the wrong
-code region. This still helps less than a report that points to the actual
-price-dependent logic involved in the finding. Second, a detector may produce
-too many vulnerable groups. If only one group is correct, binary scoring may
-still reward the tool while ignoring the extra manual review cost. Third, a
-detector may identify the correct code area but explain the wrong root cause or
-recommend the wrong mitigation. An auditor would then need to reinterpret the
-report before it becomes useful.
-
-These problems motivate report-level evaluation. A generated report should be
-judged by localization accuracy, root-cause explanation, impact and mitigation
-agreement, semantic similarity to the ground-truth explanation, and the number
-of unsupported extra reports. Audit report language is diverse, so exact text
-matching is too brittle. Two reports may describe the same missing TWAP
-mitigation using different words. A semantic similarity score can capture
-meaning overlap better than lexical overlap, but it must be used together with
-localization and mitigation checks. This thesis therefore treats binary metrics
-as a baseline rather than the final measure of success.
+Taken together, the literature reviewed in this chapter establishes the main
+ingredients needed by this thesis: price-manipulation reasoning, hybrid
+static-analysis-plus-LLM workflows, and repository-level audit artifacts and
+benchmarks. A clear gap nevertheless remains. Existing systems and benchmarks
+are still largely general-purpose: they do not directly provide an evaluation
+framework tailored to flash-loan price manipulation findings in which source
+identification, sink localization, mitigation agreement, semantic explanation
+quality, and over-reporting cost are measured together. This thesis therefore
+draws methodological inspiration from these directions while focusing on a
+narrower, audit-oriented evaluation target.

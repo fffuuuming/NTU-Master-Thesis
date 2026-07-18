@@ -20,20 +20,19 @@ surrounds it, and which financial decision later depends on it. For example,
 using a current pool price directly in collateral valuation or liquidation logic
 can be dangerous, while a properly configured time-weighted average price
 (TWAP), independent oracle check, deviation bound, or slippage control may make
-a similar-looking code pattern acceptable. Likewise, an accounting update,
-token transfer, or reward calculation is only security-critical when the
-manipulated value can influence an irreversible economic state transition. This
-dependence on economic context makes price manipulation hard for detectors that
-only match fixed code patterns.
+a similar-looking code pattern acceptable. The problem is therefore contextual:
+detectors that only match fixed code patterns often miss the economic
+conditions that determine exploitability.
 
 Prior work has made substantial progress in detecting DeFi attacks and smart
 contract vulnerabilities. Some systems analyze historical transactions to find
 attacks that already occurred. Others inspect smart contract code or bytecode to
 detect vulnerable patterns before exploitation. Recent approaches also combine
 static analysis with large language models (LLMs) to reason about code context
-and economic intent. These directions are useful, but their problem setting and
-evaluation often remain centered on attack detection, individual contracts,
-protocol-level vulnerability labels, or binary classification metrics.
+and economic intent. Recent audit corpora and benchmarks have also begun to
+structure repository-level evaluation for smart contract agents. These
+directions are useful, but they do not yet make repository-level flash-loan
+price manipulation findings for auditors the primary evaluation target.
 
 Real audits have a different shape. Auditors typically inspect an entire
 protocol repository rather than a single function or isolated transaction. They
@@ -42,9 +41,8 @@ logic, and external integrations interact. The final audit report is also not a
 binary label. A useful finding identifies the affected code location or snippet,
 explains the root cause, describes the impact, recommends mitigation, and
 provides enough evidence for the auditor and developer to verify the issue. A
-tool that only says that a protocol is vulnerable may still leave most of the
-audit work unresolved. A tool that reports many plausible but unsupported issues
-may increase manual verification cost even if one of its reports is correct.
+tool that produces only a protocol-level label, or too many weakly supported
+findings, still leaves substantial audit work to humans.
 
 This thesis therefore studies flash-loan price manipulation detection as an
 audit-assistance problem. The goal is not to replace human auditors, but to
@@ -54,7 +52,7 @@ reduce redundant paths, explain why a particular price dependency is risky, and
 produce findings whose structure resembles the information auditors already use:
 code location, root cause, impact, missing protection, and supporting evidence.
 
-To explore this goal, this thesis designs and implements a prototype workflow
+To study this problem, this thesis designs and implements a workflow
 for Solidity projects. The workflow uses Slither-based static analysis
 \citep{slither} to collect candidate data-flow evidence related to price
 dependencies and financial operations. It then groups redundant evidence into
@@ -71,9 +69,9 @@ to the right code, explains the right root cause, recommends the right
 mitigation, or avoids excessive false positives. To evaluate audit usefulness,
 this thesis uses public audit findings from sources such as Solodit, Code4rena,
 and Sherlock as report-level comparison targets
-\citep{solodit,code4rena,sherlock}. The evaluation considers localization,
-semantic explanation similarity, impact and mitigation agreement, and
-over-reporting penalties that approximate manual review burden.
+\citep{solodit,code4rena,sherlock}. It measures localization, semantic
+explanation similarity, impact and mitigation agreement, and over-reporting
+penalties that approximate manual review burden.
 
 In particular, this thesis is organized around three research questions. First,
 can a static-analysis-plus-LLM workflow generate audit-style findings that help
@@ -85,26 +83,23 @@ recall alone?
 
 The contributions of this thesis are as follows:
 \begin{enumerate}
-    \item It frames flash-loan price manipulation detection as an
+    \item We frame flash-loan price manipulation detection as an
     audit-assistance problem, emphasizing repository-level localization,
     explanation quality, and false-positive burden rather than only vulnerable
     or benign classification.
 
-    \item It presents a prototype workflow that combines static evidence
+    \item We present a workflow that combines static evidence
     extraction, path reduction, staged LLM reasoning, and structured
     audit-style finding generation for Solidity repositories.
 
-    \item It proposes an audit-finding-based evaluation methodology that
+    \item We propose an audit-finding-based evaluation methodology that
     compares generated reports with public audit findings using localization,
     root-cause explanation, impact and mitigation alignment, semantic
     similarity, and over-reporting metrics.
 \end{enumerate}
 
-The remainder of this thesis is organized as follows. Chapter 2 reviews price
-manipulation vulnerabilities, smart contract auditing practice, transaction- and
-code-based detection approaches, LLM-assisted smart contract analysis, and
-audit-report-based evaluation. Chapter 3 describes the design of the proposed
-workflow and evaluation framework. Chapter 4 explains the implementation of the
-prototype. Chapter 5 presents the planned evaluation methodology and
-preliminary observations from existing artifacts. Chapter 6 concludes the
-thesis and discusses future work.
+The remainder of this thesis is organized as follows. Chapter 2 provides
+background and reviews related work. Chapters 3 and 4 present the design and
+implementation of the proposed workflow. Chapter 5 presents the evaluation
+framework and qualitative results. Chapter 6 concludes the thesis and
+discusses limitations and future work.

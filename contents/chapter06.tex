@@ -14,7 +14,7 @@ flows, but it tends to over-approximate. LLMs can reason about code context and
 missing mitigations, but they require concrete evidence and structured output
 to be useful.
 
-The prototype developed for this thesis combines these two strengths. It uses
+The system developed for this thesis combines these two strengths. It uses
 Slither-based taint analysis to identify candidate flows, canonical source
 records to merge equivalent sources, representative path generation to reduce
 raw path redundancy, and a staged LLM workflow to classify sources, triage sink
@@ -34,20 +34,22 @@ localization checks, semantic explanation similarity, mitigation agreement, and
 an over-reporting penalty. This design is intended to measure whether generated
 reports are actually useful in an audit workflow.
 
-\section{Current Status}
+\section{Limitations}
 
-The current implementation should be understood as an initial prototype. It has
-working components for taint analysis, source and sink tracking, path grouping,
-LLM prompt generation, staged LLM execution, JSON validation, and preliminary
-dataset organization. Existing artifacts show that the workflow can produce
-plausible findings for projects such as Spartan and Predy. They also reveal
-important limitations, such as missing sink coverage in some projects.
+The implementation delivered in this thesis is a working system with
+components for taint analysis, source and sink tracking, path grouping, LLM
+prompt generation, staged LLM execution, JSON validation, and dataset
+organization. The qualitative results in Chapter 5 show that the workflow can
+produce plausible findings for projects such as Spartan and Predy. They also
+expose important limitations, especially incomplete sink coverage in some
+projects.
 
-The current dataset work also remains in progress. The collected audit-finding
-CSV contains useful metadata for filtering and evaluation, and the HIGH dataset
-slice includes build-readiness checks. However, final quantitative evaluation
-requires a clearly frozen build-verified subset and manually reviewed ground
-truth labels.
+The evaluation scope of this thesis is therefore centered on framework design,
+report structure, and case-based analysis rather than on a fully frozen
+large-scale benchmark. Although the collected audit-finding CSV and the HIGH
+dataset slice provide useful metadata and build-readiness checks, exhaustive
+manual labeling and large-scale quantitative benchmarking remain outside the
+scope of the present thesis.
 
 \section{Future Work}
 
@@ -62,8 +64,9 @@ would reduce false positives and make LLM findings more defensible.
 
 \subsection{Expand Sink Coverage}
 
-Preliminary artifacts show that source identification can succeed while sink
-matching fails. Future work should expand sink definitions beyond the current
+The case studies in Chapter 5 show that source identification can succeed while
+sink matching fails. Future work should expand sink definitions beyond the
+current
 patterns. In particular, the analyzer should better capture protocol-specific
 accounting updates, vault share calculations, liquidity-position updates,
 reward eligibility checks, and liquidation-adjacent helper functions. Each new
@@ -71,7 +74,7 @@ sink definition should be tested against real audit findings.
 
 \subsection{Freeze a Build-Verified Dataset}
 
-The final evaluation should use a frozen dataset split. Each project should
+Future large-scale evaluations should use a frozen dataset split. Each project should
 record the repository commit, compiler version, toolchain, build command,
 required environment variables, and analysis target. Findings should be
 categorized as price manipulation, related manipulation, or out of scope.
@@ -79,7 +82,7 @@ Without a frozen dataset, results will be hard to reproduce and compare.
 
 \subsection{Calibrate Semantic Matching}
 
-The semantic explanation score currently uses a working threshold. Future work
+The semantic explanation score in this thesis uses a fixed threshold of 0.7. Future work
 should build a small validation set of prediction-ground-truth pairs labeled by
 human reviewers. The embedding model and threshold should then be calibrated
 against this validation set. This step is necessary before semantic similarity
@@ -109,5 +112,5 @@ LLM-assisted security tools should not be evaluated only by whether they can
 say that a project is vulnerable. For practical auditing, the harder and more
 important question is whether they can explain the vulnerability accurately,
 localize it precisely, and avoid unnecessary noise. This thesis takes a step
-toward that goal by implementing a PMDetector-inspired prototype and proposing
+toward that goal by implementing a PMDetector-inspired workflow and proposing
 an audit-centered evaluation framework for price manipulation detection.
